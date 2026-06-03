@@ -50,8 +50,13 @@ The **Checkly Trigger** node listens for Checkly alerts via a webhook.
 
 When you activate a workflow containing this node, it automatically creates a **webhook alert channel**
 in your Checkly account pointing at the n8n webhook URL, and subscribes it according to the **Subscribe To**
-setting (all checks, a specific check, or a specific check group). When the workflow is deactivated, the
-alert channel is removed again.
+setting. When the workflow is deactivated, the alert channel is removed again.
+
+- **All Checks** — subscribes every existing check and auto-subscribes any checks created later.
+- **Specific Check** / **Specific Check Group** — subscribes only the selected check or group.
+
+Subscriptions are created via Checkly's dedicated subscriptions endpoint after the channel is made, so
+re-publishing the workflow re-applies them.
 
 - **Events** — choose which events fire the workflow (failed, recovered, degraded, SSL expiring).
 - **Verify Signature** — when enabled, requests whose `x-checkly-signature` header does not match the

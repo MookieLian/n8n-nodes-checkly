@@ -30,6 +30,48 @@ const WEBHOOK_TEMPLATE = JSON.stringify({
 	link: '{{RESULT_LINK}}',
 });
 
+// Subscribes a single check or group to an alert channel. The `subscriptions` field
+// on the create call is ignored by the API, so this dedicated endpoint must be used.
+async function subscribeTarget(
+	this: IHookFunctions,
+	channelId: number,
+	target: { checkId: string } | { groupId: number },
+): Promise<void> {
+	const body: IDataObject = { ...target, activated: true };
+	await checklyApiRequest.call(
+		this,
+		'PUT',
+		`/v1/alert-channels/${channelId}/subscriptions`,
+		body,
+	);
+}
+
+// Fetches the IDs of all checks in the account, paging through the list.
+async function getAllCheckIds(this: IHookFunctions): Promise<string[]> {
+	const ids: string[] = [];
+	const limit = 100;
+	let page = 1;
+	let fetchMore = true;
+	while (fetchMore) {
+		const batch = (await checklyApiRequest.call(this, 'GET', '/v1/checks', undefined, {
+			limit,
+			page,
+		})) as Array<{ id: string }>;
+		if (!Array.isArray(batch) || batch.length === 0) {
+			break;
+		}
+		for (const check of batch) {
+			ids.push(check.id);
+		}
+		if (batch.length < limit) {
+			fetchMore = false;
+		} else {
+			page += 1;
+		}
+	}
+	return ids;
+}
+
 export class ChecklyTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Checkly Trigger',
@@ -173,7 +215,11 @@ export class ChecklyTrigger implements INodeType {
 
 				const secret = randomBytes(24).toString('hex');
 
-				const body: IDataObject = {
+				// Create the webhook alert channel. `autoSubscribe` only affects checks
+				// created in the FUTURE, so it is enabled only for the "all checks" mode.
+				// Existing checks must be subscribed individually via the subscriptions
+				// endpoint below — the `subscriptions` field in this body is ignored.
+				const response = (await checklyApiRequest.call(this, 'POST', '/v1/alert-channels', {
 					type: 'WEBHOOK',
 					config: {
 						name: 'n8n Checkly Trigger',
@@ -186,31 +232,35 @@ export class ChecklyTrigger implements INodeType {
 					sendRecovery: events.includes('sendRecovery'),
 					sendDegraded: events.includes('sendDegraded'),
 					sslExpiry: events.includes('sslExpiry'),
-				};
+					autoSubscribe: subscribeTo === 'all',
+				})) as { id: number };
 
-				if (subscribeTo === 'all') {
-					body.autoSubscribe = true;
-				} else if (subscribeTo === 'check') {
+				const channelId = response.id;
+
+				if (subscribeTo === 'check') {
 					const checkId = this.getNodeParameter('checkId', undefined, {
 						extractValue: true,
 					}) as string;
-					body.subscriptions = [{ checkId, activated: true }];
+					await subscribeTarget.call(this, channelId, { checkId });
 				} else if (subscribeTo === 'group') {
 					const groupId = this.getNodeParameter('groupId', undefined, {
 						extractValue: true,
 					}) as string;
-					body.subscriptions = [{ groupId: Number(groupId), activated: true }];
+					await subscribeTarget.call(this, channelId, { groupId: Number(groupId) });
+				} else {
+					// Subscribe every existing check; future checks are covered by autoSubscribe.
+					const checkIds = await getAllCheckIds.call(this);
+					for (const checkId of checkIds) {
+						try {
+							await subscribeTarget.call(this, channelId, { checkId });
+						} catch {
+							// Best effort — skip checks that cannot be subscribed.
+						}
+					}
 				}
 
-				const response = (await checklyApiRequest.call(
-					this,
-					'POST',
-					'/v1/alert-channels',
-					body,
-				)) as { id: number };
-
 				const data = this.getWorkflowStaticData('node');
-				data.alertChannelId = response.id;
+				data.alertChannelId = channelId;
 				data.webhookSecret = secret;
 				return true;
 			},
