@@ -1,6 +1,6 @@
 {
 	"name": "@mookielianhd/n8n-nodes-checkly",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "n8n community node for the Checkly API - manage checks, check groups, alert channels, dashboards, maintenance windows and more, plus a webhook trigger for alerts",
 	"license": "MIT",
 	"homepage": "https://github.com/MookieLian/n8n-nodes-checkly#readme",
