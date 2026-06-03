@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-base.checklyTrigger",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Development", "Utility"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/MookieLian/n8n-nodes-checkly?tab=readme-ov-file#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://www.checklyhq.com/docs/alerting-and-retries/webhooks/"
+			}
+		]
+	}
+}
